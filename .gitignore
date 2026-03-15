@@ -1,0 +1,17 @@
+# Model weights
+engines/BetaZero/models/
+
+engines/BetaZero/realboardtest.py
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# Conda / virtual envs
+*.egg-info/
+
+# VSCode
+.vscode/
+
