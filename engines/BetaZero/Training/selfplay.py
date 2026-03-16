@@ -9,7 +9,7 @@ from game.board import UltimateBoard
 #from engines.BetaZero.NeuralNetwork import UltimateTTTNet
 from engines.BetaZero.StateEncoder import encode_board, convert_to_position
 from engines.BetaZero.MonteCarlo import mcts_search
-from engines.random_agent import RandomAgent, select_move
+from engines.random_agent import RandomAgent
 
 
 def self_play_game(network, n=100, temperature=1.0):

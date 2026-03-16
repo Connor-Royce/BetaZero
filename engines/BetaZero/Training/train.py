@@ -13,7 +13,7 @@ print(f"using device: {device}")
 network = UltimateTTTNet(num_channels=64, num_res_blocks=4).to(device)
 
 optimizer = torch.optim.Adam(network.parameters(), lr=.001)
-num_iterations = 50
+num_iterations = 100
 
 replay_buffer = deque(maxlen=10000)  # how many iterations of data to keep
 batch_size = 64
