@@ -4,7 +4,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 import torch
 from engines.BetaZero.NeuralNetwork import UltimateTTTNet
-from engines.BetaZero.Training.selfplay import self_play_game,loss_computation
+from engines.BetaZero.Training.selfplay import self_play_game,loss_computation, evaluate_vs_random
 from collections import deque
 import random
 
@@ -56,4 +56,7 @@ for iteration in range(num_iterations):
     model_path.parent.mkdir(exist_ok=True)  # Creates the models/ folder if it doesn't exist
     torch.save(network.state_dict(), model_path)
     print("Weights saved")
+
+    if iteration % 5 == 0:  # every N iterations
+        evaluate_vs_random(network, num_games=40, n=50)
     

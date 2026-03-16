@@ -9,6 +9,7 @@ from game.board import UltimateBoard
 #from engines.BetaZero.NeuralNetwork import UltimateTTTNet
 from engines.BetaZero.StateEncoder import encode_board, convert_to_position
 from engines.BetaZero.MonteCarlo import mcts_search
+from engines.random_agent import RandomAgent, select_move
 
 
 def self_play_game(network, n=100, temperature=1.0):
@@ -115,3 +116,47 @@ def loss_computation(training_data_list,network):
     total_loss = policy_loss + value_loss
 
     return total_loss
+
+def evaluate_vs_random(network, num_games=40, n=50):
+    """
+    Play games against RandomAgent to measure strength.
+    
+    Args:
+        network: UltimateTTTNet instance
+        num_games: total games to play (half as X, half as O)
+        n: MCTS simulations per move (can be lower than training for speed)
+    
+    Returns:
+        win_rate: float between 0 and 1
+    """
+    
+    wins = 0
+    losses = 0
+    draws = 0
+    random = RandomAgent()
+    for game_num in range(num_games):
+        board = UltimateBoard()
+        
+        if game_num % 2 == 0:
+            betazero_player = -1
+        else:
+            betazero_player = 1
+        
+        while not board.is_terminal():
+            if board.player == betazero_player:
+                best_move,visit_counts = mcts_search(board,network,n,add_noise=False)
+                board.apply_move(best_move)
+            else:
+                random_move = random.select_move(board)
+                board.apply_move(random_move)
+        
+        if board.is_terminal():
+            if board.check_macro() == betazero_player:
+                wins +=1
+            elif board.check_macro() == -betazero_player:
+                losses +=1
+            else:
+                draws += 1
+        
+    print(f"vs Random: {wins}W / {losses}L / {draws}D  ({wins/num_games:.1%} win rate)")
+    return wins / num_games

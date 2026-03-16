@@ -13,9 +13,9 @@ def main():
     board = UltimateBoard()
     
     try:
-        gui = UltimateTTTGUI(board, agent_x=None, agent_o=BetaZeroAgent())
+        #gui = UltimateTTTGUI(board, agent_x=None, agent_o=BetaZeroAgent())
         #gui = UltimateTTTGUI(board, agent_x=RandomAgent(), agent_o=BetaZeroAgent())
-        #gui = UltimateTTTGUI(board, agent_x=BetaZeroAgent(), agent_o=RandomAgent())
+        gui = UltimateTTTGUI(board, agent_x=BetaZeroAgent(), agent_o=RandomAgent())
 
         gui.run()  # Start the game loop
     except Exception as e:
