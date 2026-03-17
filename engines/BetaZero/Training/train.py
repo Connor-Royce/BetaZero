@@ -4,7 +4,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 import torch
 from engines.BetaZero.NeuralNetwork import UltimateTTTNet
-from engines.BetaZero.Training.selfplay import self_play_game,loss_computation, evaluate_vs_random
+from engines.BetaZero.Training.selfplay import self_play_game,loss_computation,evaluate_vs_random,play_vs_random
 from collections import deque
 import random
 
@@ -30,9 +30,11 @@ else:
 
 for iteration in range(num_iterations):
     network.eval()
-    iteration_data=[]
-    for i in range (20):
+    iteration_data = []
+    for i in range(10):
         iteration_data += self_play_game(network)
+    for i in range(10):
+        iteration_data += play_vs_random(network)
 
     # add to replay buffer instead of using directly
     replay_buffer.extend(iteration_data)

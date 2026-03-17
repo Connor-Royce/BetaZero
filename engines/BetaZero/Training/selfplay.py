@@ -6,10 +6,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import torch
 import numpy as np
 from game.board import UltimateBoard
-#from engines.BetaZero.NeuralNetwork import UltimateTTTNet
 from engines.BetaZero.StateEncoder import encode_board, convert_to_position
 from engines.BetaZero.MonteCarlo import mcts_search
 from engines.random_agent import RandomAgent
+import random as rando
 
 
 def self_play_game(network, n=100, temperature=1.0):
@@ -160,3 +160,76 @@ def evaluate_vs_random(network, num_games=40, n=50):
         
     print(f"vs Random: {wins}W / {losses}L / {draws}D  ({wins/num_games:.1%} win rate)")
     return wins / num_games
+
+def play_vs_random(network, n=100, temperature=1.0):
+    """
+    Play one game of BetaZero vs RandomAgent, recording training data
+    only from BetaZero's perspective.
+    
+    Args:
+        network: UltimateTTTNet instance
+        n: MCTS simulations per move
+        temperature: temperature for move selection
+    
+    Returns:
+        training_data: List of (state, policy, value) tuples
+    """
+    board = UltimateBoard()
+    random_agent = RandomAgent()
+    game_history = []  # Only store BetaZero's positions
+    move_counter = 0
+    
+    betazero_player = rando.choice([-1,1]) 
+    
+    while not board.is_terminal():
+        if board.player == betazero_player:
+            best_move, visits = mcts_search(board, network, n,  add_noise=True)
+
+            if move_counter < 30:
+                moves = list(visits.keys())
+                counts = np.array([visits[m] for m in moves], dtype=np.float32)
+                counts = counts ** (1.0 / temperature)
+                counts /= counts.sum()  # normalize to probabilities
+
+                # Build policy from temperature-adjusted counts
+                policy = np.zeros(81, dtype=np.float32)
+                for i, move in enumerate(moves):
+                    row, col = convert_to_position(move[0], move[1])
+                    flat_index = (row * 9) + col
+                    policy[flat_index] = counts[i]
+                
+                state = encode_board(board)
+                game_history.append((state, policy, board.player))
+
+                idx = np.random.choice(len(moves), p=counts)
+                board.apply_move(moves[idx])
+            else:
+                #Convert visit counts into a policy (probability distribution over 81 cells)
+                policy = np.zeros(81, dtype=np.float32)
+                for move, visit_count in visits.items():
+                    row, col = convert_to_position(move[0],move[1])
+                    flat_index = (row * 9) + col
+                    policy[flat_index] = visit_count
+                policy /= np.sum(policy)  # Normalize to get probabilities
+                state = encode_board(board)
+
+                # Save (state, policy, board.player) to game_history
+                game_history.append((state, policy, board.player))
+                board.apply_move(best_move)        
+        else:
+            random_move = random_agent.select_move(board)
+            board.apply_move(random_move)     
+        move_counter += 1
+ 
+    result = board.check_macro()
+    training_data = []
+    for state, policy, player in game_history:
+        if result == 4:
+            value = 0.0
+        elif result == betazero_player:
+            value = 1.0
+        else:
+            value = -1.0 
+        training_data.append((state, policy, value))
+    
+    return training_data
