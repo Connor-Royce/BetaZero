@@ -12,7 +12,7 @@ from engines.random_agent import RandomAgent
 import random as rando
 
 
-def self_play_game(network, n=100, temperature=1.0):
+def self_play_game(network, n=400, temperature=1.0):
     """
     Play one full game using MCTS, recording training data.
     
