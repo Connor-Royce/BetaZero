@@ -26,6 +26,7 @@ if model_path.exists():
     checkpoint = torch.load(model_path, weights_only=False)
     network.load_state_dict(checkpoint['network'])
     optimizer.load_state_dict(checkpoint['optimizer'])
+    scheduler.load_state_dict(checkpoint['scheduler'])
     start_iteration = checkpoint['iteration'] + 1
     print(f"Resumed from iteration {start_iteration}")
 else:
@@ -38,9 +39,6 @@ for iteration in range(start_iteration, start_iteration + num_iterations):
     iteration_data = []
     
     iteration_data = batched_self_play(network, num_games=50, num_simulations=400)
-
-    # add to replay buffer instead of using directly
-    #replay_buffer.extend(iteration_data)
 
     for game_data in iteration_data:
         replay_buffer.extend(generate_symmetries(game_data))
@@ -72,10 +70,15 @@ for iteration in range(start_iteration, start_iteration + num_iterations):
         f.write(log_line + "\n")
     print(log_line)
 
-    print(f"Iteration {iteration}, Avg Loss: {epoch_loss / len(chunk_list):.5f}")
+    #print(f"Iteration {iteration}, Avg Loss: {epoch_loss / len(chunk_list):.5f}")
 
     model_path.parent.mkdir(exist_ok=True)  # Creates the models/ folder if it doesn't exist
-    torch.save({'network': network.state_dict(),'optimizer': optimizer.state_dict(),'iteration': iteration}, model_path)
+    torch.save({
+    'network': network.state_dict(),
+    'optimizer': optimizer.state_dict(),
+    'scheduler': scheduler.state_dict(),
+    'iteration': iteration
+}, model_path)
     print("Weights saved")
 
     # if iteration % 5 == 0:  # every N iterations

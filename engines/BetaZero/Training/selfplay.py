@@ -11,10 +11,12 @@ from engines.BetaZero.MonteCarlo import mcts_search,  MCTSNode
 from engines.random_agent import RandomAgent
 import random as rando
 
-def batched_self_play(network, num_games=50, num_simulations=400, temperature=1.0):
+def batched_self_play(network, num_games=50, num_simulations=400, temperature=1.0, leaves_per_game=8):
     """
     Play multiple games in parallel with batched neural network evaluation.
-    
+    Uses virtual loss to select multiple leaves per game per batch,
+    reducing the number of sequential NN calls by a factor of leaves_per_game.
+
     Returns:
         all_training_data: list of (state, policy, value) tuples from all games
     """
@@ -72,60 +74,73 @@ def batched_self_play(network, num_games=50, num_simulations=400, temperature=1.
                 child.prior_prob = 0.75 * child.prior_prob + 0.25 * noise[k]
 
 
-        # ---- Phase 3: MCTS simulations (batched) ----
-        for sim in range(num_simulations):
+        # ---- Phase 3: MCTS simulations (batched with virtual loss) ----
+        # Instead of 1 leaf per game per batch, select up to leaves_per_game
+        # leaves per game using virtual loss to diversify paths. This cuts
+        # sequential NN calls from num_simulations to ~num_simulations/leaves_per_game.
+        sims_done = 0
+        while sims_done < num_simulations:
+            batch_size_this_round = min(leaves_per_game, num_simulations - sims_done)
 
-            # -- Step A: Selection --
+            # -- Step A: Selection with virtual loss --
             leaves_to_evaluate = []
             states_to_evaluate = []
+            terminal_leaves = []
+            selected_this_round = set()
 
             for i in active_indices:
-                node = roots[i]
-                while not node.is_leaf():
-                    move, node = node.select_favorite_child()
+                for _ in range(batch_size_this_round):
+                    node = roots[i]
+                    while not node.is_leaf():
+                        move, node = node.select_favorite_child()
 
-                # Terminal leaf — backpropagate immediately
-                if node.board.is_terminal():
-                    result = node.board.check_macro()
-                    if result == 4:
-                        value = 0.0
-                    else:
-                        value = result * node.board.player
-                    node.backpropagate(value)
-                    continue
+                    if node.board.is_terminal():
+                        result = node.board.check_macro()
+                        if result == 4:
+                            value = 0.0
+                        else:
+                            value = result * node.board.player
+                        terminal_leaves.append((node, value))
+                    elif id(node) not in selected_this_round:
+                        selected_this_round.add(id(node))
+                        node.apply_virtual_loss()
+                        leaves_to_evaluate.append((i, node))
+                        states_to_evaluate.append(encode_board(node.board))
 
-                # Non-terminal leaf — queue for batched evaluation
-                leaves_to_evaluate.append((i, node))
-                states_to_evaluate.append(encode_board(node.board))
+            # Backpropagate terminal leaves immediately
+            for node, value in terminal_leaves:
+                node.backpropagate(value)
 
             # -- Step B: Batched evaluation --
-            if not states_to_evaluate:
-                continue
+            if states_to_evaluate:
+                state_batch = torch.from_numpy(np.stack(states_to_evaluate)).float().to(
+                    next(network.parameters()).device
+                )
+                with torch.no_grad():
+                    policy_logits, values = network(state_batch)
+                    policies = torch.softmax(policy_logits, dim=1).cpu().numpy()
+                    values = values.cpu().numpy()
 
-            state_batch = torch.from_numpy(np.stack(states_to_evaluate)).float().to(
-                next(network.parameters()).device
-            )
-            with torch.no_grad():
-                policy_logits, values = network(state_batch)
-                policies = torch.softmax(policy_logits, dim=1).cpu().numpy()
-                values = values.cpu().numpy()
+                # -- Step C: Revert virtual loss, expand, backpropagate --
+                for j, (game_idx, leaf_node) in enumerate(leaves_to_evaluate):
+                    leaf_node.revert_virtual_loss()
 
-            # -- Step C: Expansion and backpropagation --
-            for j, (game_idx, leaf_node) in enumerate(leaves_to_evaluate):
-                policy = policies[j]
-                value = float(values[j])
+                    policy = policies[j]
+                    value = float(values[j])
 
-                legal_moves = leaf_node.board.get_legal_moves()
-                move_probs = decode_policy(torch.from_numpy(policy), leaf_node.board)
+                    legal_moves = leaf_node.board.get_legal_moves()
+                    move_probs = decode_policy(torch.from_numpy(policy), leaf_node.board)
 
-                for move in legal_moves:
-                    child_board = leaf_node.board.copy()
-                    child_board.apply_move(move)
-                    prior = float(move_probs[move])
-                    child_node = MCTSNode(child_board, parent=leaf_node, parent_action=move, prior_prob=prior)
-                    leaf_node.children[move] = child_node
+                    for move in legal_moves:
+                        child_board = leaf_node.board.copy()
+                        child_board.apply_move(move)
+                        prior = float(move_probs[move])
+                        child_node = MCTSNode(child_board, parent=leaf_node, parent_action=move, prior_prob=prior)
+                        leaf_node.children[move] = child_node
 
-                leaf_node.backpropagate(value)
+                    leaf_node.backpropagate(value)
+
+            sims_done += batch_size_this_round
 
 
         # ---- Phase 4: Move selection ----

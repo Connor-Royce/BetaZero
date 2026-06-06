@@ -28,20 +28,36 @@ class MCTSNode:
         self.parent = parent
         self.parent_action = parent_action
         self.prior_prob = prior_prob
-        
+
         self.children = {}  # Dictionary: {move: child_node}
         self.visit_count = 0.0
         self.total_value = 0.0
+        self.virtual_losses = 0
     
     def is_leaf(self):
         """Check if this node has no children yet."""
         return len(self.children) == 0
     
     def value(self):
-        """Average value of this node (Q-value)."""
-        if self.visit_count == 0:
+        """Average value of this node (Q-value), penalized by virtual losses."""
+        effective_visits = self.visit_count + self.virtual_losses
+        if effective_visits == 0:
             return 0
-        return self.total_value/self.visit_count
+        return (self.total_value - self.virtual_losses) / effective_visits
+
+    def apply_virtual_loss(self):
+        """Mark this node and its ancestors as in-flight to discourage re-selection."""
+        node = self
+        while node is not None:
+            node.virtual_losses += 1
+            node = node.parent
+
+    def revert_virtual_loss(self):
+        """Remove the in-flight penalty after evaluation completes."""
+        node = self
+        while node is not None:
+            node.virtual_losses -= 1
+            node = node.parent
     
     def select_favorite_child(self, c_puct=1.0):
         """
@@ -65,18 +81,20 @@ class MCTSNode:
 
         UCB(node) = Q + c_puct * P * sqrt(parent_visits) / (1 + node_visits)
         Where:
-        - Q = node.value() 
-        - P = node.prior_prob 
-        - c_puct = exploration constant  
-        
+        - Q = node.value()  (includes virtual loss penalty)
+        - P = node.prior_prob
+        - c_puct = exploration constant
+
         Args:
             c_puct: Exploration constant
-            
+
         Returns:
             float: UCB score
         """
-        return self.value() + c_puct * self.prior_prob * (math.sqrt(self.parent.visit_count)/\
-            (1+self.visit_count))
+        effective_visits = self.visit_count + self.virtual_losses
+        parent_effective = self.parent.visit_count + self.parent.virtual_losses
+        return self.value() + c_puct * self.prior_prob * (math.sqrt(parent_effective) /\
+            (1 + effective_visits))
     
     def expand(self, network):
         """
