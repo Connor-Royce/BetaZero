@@ -148,20 +148,26 @@ def encode_board(board):
 def decode_policy(policy_tensor, board):
     """
     Convert policy output tensor to move probabilities dictionary.
-    
+
     Args:
         policy_tensor: torch.Tensor or np.array of shape (81,) with probabilities
         board: UltimateBoard instance to get legal moves
-        
+
     Returns:
-        dict mapping (board_idx, cell_idx) -> probability
+        dict mapping (board_idx, cell_idx) -> probability (renormalized over legal moves)
     """
     moves = board.get_legal_moves()
     result = {}
+    total = 0.0
     for move in moves:
         row, col = convert_to_position(move[0],move[1])
         flat_index = (row * 9) + col
-        result[move] = policy_tensor[flat_index]
+        prob = float(policy_tensor[flat_index])
+        result[move] = prob
+        total += prob
+    if total > 0:
+        for move in result:
+            result[move] /= total
     return result
 
 

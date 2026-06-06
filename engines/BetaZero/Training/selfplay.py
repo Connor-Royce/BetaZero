@@ -69,7 +69,7 @@ def batched_self_play(network, num_games=50, num_simulations=400, temperature=1.
             roots[i].backpropagate(value)
 
             # Add Dirichlet noise to root children
-            noise = np.random.dirichlet([0.03] * len(roots[i].children))
+            noise = np.random.dirichlet([0.5] * len(roots[i].children))
             for k, child in enumerate(roots[i].children.values()):
                 child.prior_prob = 0.75 * child.prior_prob + 0.25 * noise[k]
 

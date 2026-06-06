@@ -73,8 +73,7 @@ class UltimateBoard:
 
         if self.active_board is None:
             for b in range(9):
-                #if self.macro[b] != 0: # does not allow play in empty cells in already won or lost boards
-                if self.macro[b] == 4: # allows play in empty cells in already won or lost boards
+                if self.macro[b] != 0:
                     continue
                 for c in range(9):
                     if self.boards[b][c] == 0:

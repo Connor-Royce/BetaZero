@@ -59,7 +59,7 @@ class MCTSNode:
             node.virtual_losses -= 1
             node = node.parent
     
-    def select_favorite_child(self, c_puct=1.0):
+    def select_favorite_child(self, c_puct=2.0):
         """
         Select the child with highest UCB score.
         
@@ -75,7 +75,7 @@ class MCTSNode:
 
 
 
-    def ucb_score(self, c_puct=1.0):
+    def ucb_score(self, c_puct=2.0):
         """
         Calculate the UCB score for this node according to the following formula:
 
@@ -158,7 +158,7 @@ def mcts_search(board, network, n=100, add_noise=False):
     root.backpropagate(root_value)
 
     if add_noise:
-        noise = np.random.dirichlet([0.03] * len(root.children))
+        noise = np.random.dirichlet([0.5] * len(root.children))
         for i, child in enumerate(root.children.values()):
             child.prior_prob = 0.75 * child.prior_prob + 0.25 * noise[i]
 

@@ -43,11 +43,12 @@ for iteration in range(start_iteration, start_iteration + num_iterations):
     for game_data in iteration_data:
         replay_buffer.extend(generate_symmetries(game_data))
 
-    # mini-batch training
+    # mini-batch training — fewer epochs early to avoid overfitting noisy data
     network.train()
     buffer_list = list(replay_buffer)
+    effective_epochs = min(num_epochs, 2 + iteration // 20)
 
-    for epoch in range(num_epochs):
+    for epoch in range(effective_epochs):
         random.shuffle(buffer_list)
         chunk_list = [buffer_list[i:i + batch_size] for i in range(0, len(buffer_list), batch_size)]
         epoch_loss = 0.0
