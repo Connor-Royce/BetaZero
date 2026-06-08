@@ -1,5 +1,5 @@
-# Model weights
-engines/BetaZero/models/
+# Model weights (old lowercase path, no longer used)
+# engines/BetaZero/models/
 
 engines/BetaZero/realboardtest.py
 

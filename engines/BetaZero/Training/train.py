@@ -20,7 +20,7 @@ replay_buffer = deque(maxlen=800000)  # how many iterations of data to keep
 batch_size = 64
 num_epochs = 10
 
-model_path = Path(__file__).parent.parent / "models" / "model_weights.pth"
+model_path = Path(__file__).parent.parent / "Models" / "model_weights.pth"
 
 if model_path.exists():
     checkpoint = torch.load(model_path, weights_only=False)
