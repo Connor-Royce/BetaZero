@@ -52,18 +52,22 @@ for iteration in range(start_iteration, start_iteration + num_iterations):
         random.shuffle(buffer_list)
         chunk_list = [buffer_list[i:i + batch_size] for i in range(0, len(buffer_list), batch_size)]
         epoch_loss = 0.0
+        epoch_policy_loss = 0.0
+        epoch_value_loss = 0.0
         for chunk in chunk_list:
             optimizer.zero_grad()
-            loss = loss_computation(chunk, network)
+            loss, policy_loss, value_loss = loss_computation(chunk, network)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(network.parameters(),max_norm=1)
             optimizer.step()
             epoch_loss += loss.item()
+            epoch_policy_loss += policy_loss.item()
+            epoch_value_loss += value_loss.item()
 
     
     scheduler.step()
 
-    log_line = f"Iteration {iteration} | Loss: {epoch_loss / len(chunk_list):.5f} | LR: {scheduler.get_last_lr()[0]}"
+    log_line = f"Iteration {iteration} | Loss: {epoch_loss / len(chunk_list):.5f} | Policy: {epoch_policy_loss / len(chunk_list):.5f} | Value: {epoch_value_loss / len(chunk_list):.5f} | LR: {scheduler.get_last_lr()[0]}"
     if iteration % 5 == 0:
         win_rate = evaluate_vs_random(network, num_games=40, n=200)
         log_line += f" | vs Random: {win_rate:.1%}"

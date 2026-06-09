@@ -302,7 +302,7 @@ def loss_computation(training_data_list,network):
     # Total loss tells PyTorch how wrong the network was
     total_loss = policy_loss + value_loss
 
-    return total_loss
+    return total_loss, policy_loss, value_loss
 
 def evaluate_vs_random(network, num_games=40, n=50):
     """
