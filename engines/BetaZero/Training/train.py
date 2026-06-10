@@ -18,7 +18,7 @@ num_iterations = 1000
 
 replay_buffer = deque(maxlen=800000)  # how many iterations of data to keep
 batch_size = 64
-num_epochs = 10
+batches_per_iteration = 1000  # fixed sampling budget, independent of buffer size
 
 model_path = Path(__file__).parent.parent / "Models" / "model_weights.pth"
 
@@ -43,32 +43,31 @@ for iteration in range(start_iteration, start_iteration + num_iterations):
     for game_data in iteration_data:
         replay_buffer.extend(generate_symmetries(game_data))
 
-    # mini-batch training — fewer epochs early to avoid overfitting noisy data
+    # mini-batch training — sample a fixed number of random minibatches per
+    # iteration instead of full passes over the buffer, so training cost stays
+    # constant and old samples get a bounded number of gradient views
     network.train()
     buffer_list = list(replay_buffer)
-    effective_epochs = min(num_epochs, 2 + iteration // 20)
 
-    for epoch in range(effective_epochs):
-        random.shuffle(buffer_list)
-        chunk_list = [buffer_list[i:i + batch_size] for i in range(0, len(buffer_list), batch_size)]
-        epoch_loss = 0.0
-        epoch_policy_loss = 0.0
-        epoch_value_loss = 0.0
-        for chunk in chunk_list:
-            optimizer.zero_grad()
-            loss, policy_loss, value_loss = loss_computation(chunk, network)
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(network.parameters(),max_norm=1)
-            optimizer.step()
-            epoch_loss += loss.item()
-            epoch_policy_loss += policy_loss.item()
-            epoch_value_loss += value_loss.item()
+    total_loss_sum = 0.0
+    policy_loss_sum = 0.0
+    value_loss_sum = 0.0
+    for _ in range(batches_per_iteration):
+        batch = random.sample(buffer_list, min(batch_size, len(buffer_list)))
+        optimizer.zero_grad()
+        loss, policy_loss, value_loss = loss_computation(batch, network)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(network.parameters(),max_norm=1)
+        optimizer.step()
+        total_loss_sum += loss.item()
+        policy_loss_sum += policy_loss.item()
+        value_loss_sum += value_loss.item()
 
-    
     scheduler.step()
 
-    log_line = f"Iteration {iteration} | Loss: {epoch_loss / len(chunk_list):.5f} | Policy: {epoch_policy_loss / len(chunk_list):.5f} | Value: {epoch_value_loss / len(chunk_list):.5f} | LR: {scheduler.get_last_lr()[0]}"
+    log_line = f"Iteration {iteration} | Loss: {total_loss_sum / batches_per_iteration:.5f} | Policy: {policy_loss_sum / batches_per_iteration:.5f} | Value: {value_loss_sum / batches_per_iteration:.5f} | LR: {scheduler.get_last_lr()[0]}"
     if iteration % 5 == 0:
+        network.eval()  # BatchNorm must use running stats during eval games
         win_rate = evaluate_vs_random(network, num_games=40, n=200)
         log_line += f" | vs Random: {win_rate:.1%}"
     with open("training_log.txt", "a") as f:

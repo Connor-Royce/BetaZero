@@ -39,11 +39,24 @@ class MCTSNode:
         return len(self.children) == 0
     
     def value(self):
-        """Average value of this node (Q-value), penalized by virtual losses."""
+        """Average value of this node from the perspective of the player to move at it."""
+        if self.visit_count == 0:
+            return 0
+        return self.total_value / self.visit_count
+
+    def value_from_parent(self):
+        """
+        Q-value from the parent's (selecting player's) perspective.
+
+        total_value is stored from the perspective of the player to move at
+        this node, which is the opponent of the player choosing at the parent,
+        so it must be negated for selection. Virtual losses are counted as
+        losses from the parent's perspective to repel concurrent selection.
+        """
         effective_visits = self.visit_count + self.virtual_losses
         if effective_visits == 0:
-            return 0
-        return (self.total_value - self.virtual_losses) / effective_visits
+            return 0.0
+        return (-self.total_value - self.virtual_losses) / effective_visits
 
     def apply_virtual_loss(self):
         """Mark this node and its ancestors as in-flight to discourage re-selection."""
@@ -81,7 +94,7 @@ class MCTSNode:
 
         UCB(node) = Q + c_puct * P * sqrt(parent_visits) / (1 + node_visits)
         Where:
-        - Q = node.value()  (includes virtual loss penalty)
+        - Q = node.value_from_parent()  (selecting player's perspective, includes virtual loss penalty)
         - P = node.prior_prob
         - c_puct = exploration constant
 
@@ -93,7 +106,7 @@ class MCTSNode:
         """
         effective_visits = self.visit_count + self.virtual_losses
         parent_effective = self.parent.visit_count + self.parent.virtual_losses
-        return self.value() + c_puct * self.prior_prob * (math.sqrt(parent_effective) /\
+        return self.value_from_parent() + c_puct * self.prior_prob * (math.sqrt(parent_effective) /\
             (1 + effective_visits))
     
     def expand(self, network):
