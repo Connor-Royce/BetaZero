@@ -2,9 +2,11 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
+import time
 import torch
 from engines.BetaZero.NeuralNetwork import UltimateTTTNet
 from engines.BetaZero.Training.selfplay import batched_self_play,loss_computation,evaluate_vs_random,play_vs_random, generate_symmetries
+from engines.BetaZero.Training.evaluation import network_match, find_baseline_checkpoint, elo_difference
 from collections import deque
 import random
 
@@ -18,9 +20,12 @@ num_iterations = 1000
 
 replay_buffer = deque(maxlen=800000)  # how many iterations of data to keep
 batch_size = 64
-batches_per_iteration = 1000  # fixed sampling budget, independent of buffer size
+batches_per_iteration = 1000
 
 model_path = Path(__file__).parent.parent / "Models" / "model_weights.pth"
+checkpoint_dir = model_path.parent / "checkpoints"  # frozen snapshots for ladder evals
+CHECKPOINT_INTERVAL = 25  # save a frozen snapshot this often
+EVAL_GAP = 100  # ladder-eval against the snapshot from ~this many iterations back
 
 if model_path.exists():
     checkpoint = torch.load(model_path, weights_only=False)
@@ -35,6 +40,7 @@ else:
 
 
 for iteration in range(start_iteration, start_iteration + num_iterations):
+    iter_start = time.time()
     network.eval()
     iteration_data = []
     
@@ -67,9 +73,28 @@ for iteration in range(start_iteration, start_iteration + num_iterations):
 
     log_line = f"Iteration {iteration} | Loss: {total_loss_sum / batches_per_iteration:.5f} | Policy: {policy_loss_sum / batches_per_iteration:.5f} | Value: {value_loss_sum / batches_per_iteration:.5f} | LR: {scheduler.get_last_lr()[0]}"
     if iteration % 5 == 0:
-        network.eval()  # BatchNorm must use running stats during eval games
+        network.eval()  
         win_rate = evaluate_vs_random(network, num_games=40, n=200)
         log_line += f" | vs Random: {win_rate:.1%}"
+
+    # Ladder evaluation: play the current network against a frozen snapshot
+    # from ~EVAL_GAP iterations ago. A score that stays near 50% for several
+    # evals in a row means self-improvement has stalled.
+    if iteration % CHECKPOINT_INTERVAL == 0:
+        baseline = find_baseline_checkpoint(checkpoint_dir, iteration, EVAL_GAP)
+        if baseline is not None:
+            network.eval()
+            old_net = UltimateTTTNet(num_channels=64, num_res_blocks=4).to(device)
+            old_net.load_state_dict(torch.load(baseline, map_location=device, weights_only=True))
+            old_net.eval()
+            wins, match_losses, draws = network_match(network, old_net, num_games=40, num_simulations=200)
+            score = (wins + 0.5 * draws) / (wins + match_losses + draws)
+            log_line += f" | vs {baseline.stem}: {wins}W/{match_losses}L/{draws}D (Elo {elo_difference(score):+.0f})"
+
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        torch.save(network.state_dict(), checkpoint_dir / f"iter_{iteration:05d}.pth")
+
+    log_line += f" | {time.time() - iter_start:.0f}s"
     with open("training_log.txt", "a") as f:
         f.write(log_line + "\n")
     print(log_line)
