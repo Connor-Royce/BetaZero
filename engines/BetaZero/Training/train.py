@@ -72,14 +72,14 @@ for iteration in range(start_iteration, start_iteration + num_iterations):
     scheduler.step()
 
     log_line = f"Iteration {iteration} | Loss: {total_loss_sum / batches_per_iteration:.5f} | Policy: {policy_loss_sum / batches_per_iteration:.5f} | Value: {value_loss_sum / batches_per_iteration:.5f} | LR: {scheduler.get_last_lr()[0]}"
-    if iteration % 5 == 0:
+    if iteration % 25 == 0:
         network.eval()  
         win_rate = evaluate_vs_random(network, num_games=40, n=200)
         log_line += f" | vs Random: {win_rate:.1%}"
 
-    # Ladder evaluation: play the current network against a frozen snapshot
-    # from ~EVAL_GAP iterations ago. A score that stays near 50% for several
-    # evals in a row means self-improvement has stalled.
+    '''Ladder evaluation: play the current network against a frozen snapshot
+    from ~EVAL_GAP iterations ago. A score that stays near 50% for several
+    evals in a row means self-improvement has stalled.'''
     if iteration % CHECKPOINT_INTERVAL == 0:
         baseline = find_baseline_checkpoint(checkpoint_dir, iteration, EVAL_GAP)
         if baseline is not None:
@@ -110,13 +110,5 @@ for iteration in range(start_iteration, start_iteration + num_iterations):
 }, model_path)
     print("Weights saved")
 
-    # if iteration % 5 == 0:  # every N iterations
-    #     evaluate_vs_random(network, num_games=40, n=50)
-        # # Quick diagnostic: sample a few positions and check value predictions
-        # sample = random.sample(buffer_list, min(5, len(buffer_list)))
-        # network.eval()
-        # for state, policy, true_val in sample:
-        #     _, pred_val = network.predict(state)
-        #     print(f"  true = {true_val:.1f}  pred = {pred_val[0]:.3f}")
     
     
