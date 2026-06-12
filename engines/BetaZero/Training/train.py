@@ -72,10 +72,10 @@ for iteration in range(start_iteration, start_iteration + num_iterations):
     scheduler.step()
 
     log_line = f"Iteration {iteration} | Loss: {total_loss_sum / batches_per_iteration:.5f} | Policy: {policy_loss_sum / batches_per_iteration:.5f} | Value: {value_loss_sum / batches_per_iteration:.5f} | LR: {scheduler.get_last_lr()[0]}"
-    if iteration % 25 == 0:
-        network.eval()  
-        win_rate = evaluate_vs_random(network, num_games=40, n=200)
-        log_line += f" | vs Random: {win_rate:.1%}"
+    # if iteration % 25 == 0:
+    #     network.eval()  
+    #     win_rate = evaluate_vs_random(network, num_games=40, n=200)
+    #     log_line += f" | vs Random: {win_rate:.1%}"
 
     '''Ladder evaluation: play the current network against a frozen snapshot
     from ~EVAL_GAP iterations ago. A score that stays near 50% for several
