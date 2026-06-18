@@ -107,19 +107,15 @@ already-existing weights.
 GPU training is supported automatically, so if CUDA is available it will be used.
 
 **Default training config:**
-- 50 iterations
-- 20 self-play games per iteration
-- 100 MCTS simulations per move
+- 1000 iterations
+- 50 self-play games per iteration
+- 400 MCTS simulations per move
 - 64 channels, 4 residual blocks
 
 ---
 
 ## What remains to be done:
 
-- **More training** — The network is still early in learning. More iterations and compute will make it
-significantly stronger, as well as potential improvements for training efficiency.
-- **Evaluation metric** — Adding a way to track the win rate against a RandomAgent across training will help
-measure progress more concretely, and eventually tracking performance against online AIs that use minimax algorithms .
 - **Hyperparameter tuning** — Experimenting with learning rate, MCTS simulation count, network depth/width, and other hyperparameters.
 - **Model architecture improvements** — Potentially exploring attention mechanisms or larger networks
 - **WebSocket bridge** — Connecting BetaZero to a browser-based GUI for a more polished interface
@@ -128,17 +124,13 @@ measure progress more concretely, and eventually tracking performance against on
 
 ## Motivation
 
-This project began for two main reasons. The first was because I wanted to create a model that could 
-consistently beat humans in ultimate tic-tac-toe because I was very interested by this idea and thought 
-it would be cool. The second reason is because although I understood some of the theory of neural networks, 
+This project began because, though I understood some of the theory of neural networks, 
 deep learning, and machine learning in general, I wanted to gain practical experience building something 
 tangible with the concepts I have learned in the classroom, in books, and online. Because I am very interested 
 in the game of Chess and am fascinated by the models behind the worlds top chess engines, I figured that this 
-project would allow me to really understand how google's alphazero works. Ultimate Tic-Tac-Toe provided the 
-perfect choice for this project because it is complex enough to be interesting, but not too large to where 
+project would allow me to really understand how google deepmind's alphazero works. Ultimate Tic-Tac-Toe provided the perfect choice for this project because it is complex enough to be interesting, but not too large to where 
 training the model would be impractical as a college student on basic hardware. With the help of Claude 
-(primarily the opus 4.6 model), I was able to create a working engine that, once it has gone through significantly 
-more training iterations, will be able to consistently beat human opponents.
+(primarily the opus 4.6 model), I was able to create a working engine that is able to consistently beat both human opponents and online minimax engines.
 
 This project is still a work in progress, and there is no doubt I have made many mistakes (or at least sub-optimal 
 design choices) and still have much to learn. But the core engine is working and learning, and this project was 
