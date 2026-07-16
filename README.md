@@ -5,8 +5,7 @@ built as a deep dive into reinforcement learning and game AI. BetaZero learns en
 no handcrafted heuristics and no human game data, merely a neural network and a search algorithm figuring out the 
 game together.
 
-This is an ongoing project primarily focused on learning. Though the engine is functional and training, there is 
-still plenty of room for improvements.
+https://ultimatetictactoegauntlet.netlify.app/
 
 ---
 
