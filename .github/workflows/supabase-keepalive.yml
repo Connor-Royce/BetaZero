@@ -1,0 +1,39 @@
+# Keeps the free-tier Supabase project (the website's gameplay-data backend)
+# from being auto-paused, which happens after 7 days without activity. Runs a
+# tiny read query twice a week, so there's never a 7-day gap.
+#
+# Setup: add two repository secrets (Settings -> Secrets and variables ->
+# Actions -> New repository secret):
+#   SUPABASE_URL       the project URL, e.g. https://xxxx.supabase.co
+#   SUPABASE_ANON_KEY  the anon/public key (the same one in website/js/analytics.js)
+# Test it any time from the Actions tab with "Run workflow".
+#
+# Note: GitHub disables scheduled workflows in a public repo after 60 days
+# with no commits; it emails a warning first, and one click re-enables it.
+
+name: Supabase keep-alive
+
+on:
+  schedule:
+    - cron: '0 15 * * 1,4'   # Mondays and Thursdays, 15:00 UTC
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query the games table
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          base="${SUPABASE_URL%/}"
+          base="${base%/rest/v1}"
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
+            "$base/rest/v1/games?select=id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+          echo "Supabase responded HTTP $code"
+          # Anything but 200 (e.g. the project is already paused) fails the
+          # run, and GitHub emails you about the failure
+          test "$code" = "200"
