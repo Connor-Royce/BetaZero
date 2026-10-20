@@ -1,11 +1,18 @@
 # Keeps the free-tier Supabase project (the website's gameplay-data backend)
-# from being auto-paused, which happens after 7 days without activity. Runs a
-# tiny read query twice a week, so there's never a 7-day gap.
+# from being auto-paused, which happens after 7 days without activity.
 #
-# Setup: add two repository secrets (Settings -> Secrets and variables ->
-# Actions -> New repository secret):
-#   SUPABASE_URL       the project URL, e.g. https://xxxx.supabase.co
-#   SUPABASE_ANON_KEY  the anon/public key (the same one in website/js/analytics.js)
+# Every 2 days it INSERTS a heartbeat row into the `keepalive` table. (The
+# first version only ran a read query, and Supabase paused the project anyway
+# on 2026-10-08, three days after a successful read — reads evidently don't
+# count as activity, so this writes instead.)
+#
+# Setup:
+#   1. Create the table: run the `keepalive` block at the bottom of
+#      website/scripts/supabase_setup.sql in Supabase's SQL Editor.
+#   2. Add two repository secrets (Settings -> Secrets and variables ->
+#      Actions -> New repository secret):
+#        SUPABASE_URL       the project URL, e.g. https://xxxx.supabase.co
+#        SUPABASE_ANON_KEY  the anon/public key (the same one in website/js/analytics.js)
 # Test it any time from the Actions tab with "Run workflow".
 #
 # Note: GitHub disables scheduled workflows in a public repo after 60 days
@@ -15,25 +22,41 @@ name: Supabase keep-alive
 
 on:
   schedule:
-    - cron: '0 15 * * 1,4'   # Mondays and Thursdays, 15:00 UTC
+    - cron: '0 15 */2 * *'   # every other day, 15:00 UTC
   workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Query the games table
+      - name: Insert a heartbeat row
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
           base="${SUPABASE_URL%/}"
           base="${base%/rest/v1}"
-          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
-            "$base/rest/v1/games?select=id&limit=1" \
+          # `|| true`: curl exits non-zero when the host doesn't resolve —
+          # which is exactly what a paused project looks like — and the
+          # explanation below is more useful than a bare exit code.
+          code=$(curl -s -o response.txt -w "%{http_code}" --max-time 30 \
+            -X POST "$base/rest/v1/keepalive" \
             -H "apikey: $SUPABASE_ANON_KEY" \
-            -H "Authorization: Bearer $SUPABASE_ANON_KEY")
-          echo "Supabase responded HTTP $code"
-          # Anything but 200 (e.g. the project is already paused) fails the
-          # run, and GitHub emails you about the failure
-          test "$code" = "200"
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d '{"source": "github-actions"}') || true
+
+          if [ "$code" = "201" ]; then
+            echo "Heartbeat recorded (HTTP 201)."
+            exit 0
+          fi
+          # ::error:: lines show up as annotations in the failure email
+          if [ "$code" = "000" ]; then
+            echo "::error::Couldn't reach Supabase at all. The project is almost certainly PAUSED: unpause it in the Supabase dashboard, then re-run this workflow."
+          elif [ "$code" = "404" ]; then
+            echo "::error::Supabase is up, but the keepalive table doesn't exist. Run the keepalive block of website/scripts/supabase_setup.sql in the SQL Editor."
+          else
+            echo "::error::Supabase answered HTTP $code: $(head -c 300 response.txt 2>/dev/null)"
+          fi
+          exit 1
